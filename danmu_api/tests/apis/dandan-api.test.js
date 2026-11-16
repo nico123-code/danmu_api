@@ -6,7 +6,7 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, withAvailableEpisodeCount } from '../../apis/dandan-api.js';
+import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, withAvailableEpisodeCount, parseNativeDandanEpisodeId } from '../../apis/dandan-api.js';
 import { getSearchCache, setSearchCache } from '../../utils/cache-util.js';
 import { addFavorite, removeFavorite, saveFavorites } from '../../utils/favorite-util.js';
 import { Globals, globals } from '../../configs/globals.js';
@@ -357,4 +357,18 @@ test('回填可用集数后匹配到的剧集与平台声明集数时一致', as
 
   assert.equal(withDeclaredCount.episodeId, 40012, '声明集数为 21 时匹配到第 3 话');
   assert.deepStrictEqual(withAvailableCount, withDeclaredCount, '可用集数为 10 时匹配结果不变');
+});
+
+test('parseNativeDandanEpisodeId 认 7~9 位原生集 ID（4 位番剧 ID 的番不再 404）', () => {
+  assert.deepStrictEqual(parseNativeDandanEpisodeId(62570001), { animeId: 6257, episode: 1 });
+  assert.deepStrictEqual(parseNativeDandanEpisodeId(62570012), { animeId: 6257, episode: 12 });
+  assert.deepStrictEqual(parseNativeDandanEpisodeId(36510001), { animeId: 3651, episode: 1 });
+  assert.deepStrictEqual(parseNativeDandanEpisodeId(53350001), { animeId: 5335, episode: 1 });
+  assert.deepStrictEqual(parseNativeDandanEpisodeId(193080002), { animeId: 19308, episode: 2 });
+  assert.deepStrictEqual(parseNativeDandanEpisodeId(193080001), { animeId: 19308, episode: 1 });
+  assert.deepStrictEqual(parseNativeDandanEpisodeId(1000001), { animeId: 100, episode: 1 });
+  assert.strictEqual(parseNativeDandanEpisodeId(11394), null);
+  assert.strictEqual(parseNativeDandanEpisodeId(9999), null);
+  assert.strictEqual(parseNativeDandanEpisodeId(62570000), null);
+  assert.strictEqual(parseNativeDandanEpisodeId(990001), null);
 });
