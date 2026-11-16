@@ -2304,6 +2304,39 @@ export async function searchEpisodes(url) {
 }
 
 // Extracted function for GET /api/v2/bangumi/:animeId
+// PATCH: Kazumi 自动加载第一步 GET /api/v2/bangumi/bgmtv/{bgmId}，
+// 把 Bangumi subject id 换成弹弹play animeId。原版 danmu_api 没有这个路由，
+// 自动加载在第一步就 404。做法：先到 bgm.tv 取番名，再走一次站内搜索，
+// 搜索会把各源番剧写进 globals.animes，其中纯 dandan 源条目的 animeId
+// 就是弹弹play 的 animeId。
+export async function getBangumiByBgmId(bgmId) {
+  try {
+    const resp = await fetch(`https://api.bgm.tv/v0/subjects/${bgmId}`, {
+      headers: { "User-Agent": "Kazumi-Danmaku/1.0" },
+    });
+    if (!resp.ok) {
+      return jsonResponse({ errorCode: 404, success: false, errorMessage: "Bangumi subject not found", bangumi: null }, 404);
+    }
+    const subject = await resp.json();
+    const title = (subject.name_cn && String(subject.name_cn).trim()) || subject.name;
+    if (!title) {
+      return jsonResponse({ errorCode: 404, success: false, errorMessage: "Bangumi subject has no title", bangumi: null }, 404);
+    }
+    const searchUrl = new URL(`http://127.0.0.1/api/v2/search/anime?keyword=${encodeURIComponent(title)}`);
+    await searchAnime(searchUrl);
+    const candidates = globals.animes.filter((a) => a.source === "dandan");
+    const norm = (s) => String(s || "").split("(")[0].split("【")[0].trim();
+    const anime = candidates.find((a) => norm(a.animeTitle) === title || (a.aliases || []).includes(title)) || candidates[0];
+    if (!anime) {
+      return jsonResponse({ errorCode: 404, success: false, errorMessage: "Anime not found", bangumi: null }, 404);
+    }
+    return jsonResponse({ errorCode: 0, success: true, errorMessage: "", bangumi: { animeId: anime.animeId } });
+  } catch (e) {
+    log("error", `[system] [bgmtv] ${e.message}`);
+    return jsonResponse({ errorCode: 500, success: false, errorMessage: e.message, bangumi: null }, 500);
+  }
+}
+
 export async function getBangumi(path, detailStore = null, source = null) {
   const idParam = path.split("/").pop();
   const anime =
@@ -2610,6 +2643,19 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
   let url = findUrlById(commentId);
   let title = findTitleById(commentId);
   let plat = title ? extractEpisodeTitle(title) : null;
+  if (!url) {
+    // PATCH: Kazumi 自动加载直接用弹弹play 原生集 ID（animeId + 4 位集号，如 193080002），
+    // 它不在 danmu_api 的内部 ID 映射里。原生 ID 直接交给 dandan 源取弹幕，不必先搜索/匹配。
+    const nativeId = String(commentId);
+    if (/^\d{9,}$/.test(nativeId)) {
+      const nativeAnimeId = Math.floor(Number(nativeId) / 10000);
+      const nativeEpisode = Number(nativeId) % 10000;
+      if (nativeAnimeId >= 1000 && nativeEpisode >= 1 && nativeEpisode <= 9999) {
+        url = nativeId;
+        plat = "dandan";
+      }
+    }
+  }
   if (url?.startsWith('local:')) {
     return getCommentByUrl(url, queryFormat, segmentFlag, includeDuration);
   }
