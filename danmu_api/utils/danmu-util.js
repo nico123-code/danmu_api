@@ -348,6 +348,24 @@ export function buildGradientSampler(rawStops) {
   };
 }
 
+// DanDanPlay 协议来源名：Kazumi 等播放器按 p 字段第 4 段的来源名过滤
+//（BiliBili / Gamer / DanDanPlay 三路开关，大小写敏感匹配）。内部源 key
+//（bilibili1 / bahamut / dandan）须映射为协议名，否则播放器的来源开关
+// 认不出这些弹幕，关 B 站开关也藏不住 B 站弹幕。
+const DANDAN_SOURCE_LABELS = {
+  bilibili: 'BiliBili',
+  bilibili1: 'BiliBili',
+  bahamut: 'Gamer',
+  dandan: 'DanDanPlay',
+};
+
+// 把内部来源标签（可能含 ＆ 拼接的多源）映射为 DanDanPlay 协议来源名，
+// 未在映射表里的来源（如 tencent / animeko）原样保留。
+function toDanDanSourceLabel(label) {
+  if (!label) return label;
+  return String(label).split('＆').map(part => DANDAN_SOURCE_LABELS[part] || part).join('＆');
+}
+
 export function convertToDanmakuJson(contents, platform) {
   let danmus = [];
   let cidCounter = 1;
@@ -433,6 +451,9 @@ export function convertToDanmakuJson(contents, platform) {
     if (item.realTimeSource && !currentPlatform.includes(item.realTimeSource)) {
       currentPlatform = `${currentPlatform}＆${item.realTimeSource}`;
     }
+
+    // 映射为 DanDanPlay 协议来源名，供 Kazumi 等播放器的来源开关识别
+    currentPlatform = toDanDanSourceLabel(currentPlatform);
 
     // 记录本条弹幕的来源标签，循环结束后按标签种类判定是否为多源组合
     sourceLabels.add(currentPlatform);
