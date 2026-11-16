@@ -1773,6 +1773,9 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
   const match = cleanFileName.match(regex);
 
   let title, season, episode, year;
+  // PATCH: 第X集/话、E## 格式（如“学生会也有洞！ 第2集”），原版只认 S01E02
+  const cnMatch = match ? null : cleanFileName.match(/^(.+?)[\s.]*第(\d+)[集话回]/);
+  const eMatch = (!match && !cnMatch) ? cleanFileName.match(/^(.+?)[\s.]+[Ee](\d+)(?:[\s.]|$)/) : null;
 
   if (match) {
     // 匹配到 S##E## 格式
@@ -1817,6 +1820,24 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
 
     // 最后再保险清理一次常见的年份尾巴（防止漏网）
     title = title.replace(/\.\d{4}$/i, '').trim();
+    } else if (cnMatch) {
+    // 第X集/话：季默认为 1
+    title = cnMatch[1].trim().replace(/[.\s\-_]+$/, '');
+    season = 1;
+    episode = parseInt(cnMatch[2], 10);
+    const yearMatch = cleanFileName.match(/(?:\.|\(|（)((?:19|20)\d{2})(?:\)|）|\.|$)/);
+    if (yearMatch) {
+      year = parseInt(yearMatch[1], 10);
+    }
+  } else if (eMatch) {
+    // E##：季默认为 1
+    title = eMatch[1].trim().replace(/[.\s\-_]+$/, '');
+    season = 1;
+    episode = parseInt(eMatch[2], 10);
+    const yearMatch = cleanFileName.match(/(?:\.|\(|（)((?:19|20)\d{2})(?:\)|）|\.|$)/);
+    if (yearMatch) {
+      year = parseInt(yearMatch[1], 10);
+    }
   } else {
     // 没有 S##E## 格式，尝试提取第一个片段作为标题
     // 匹配第一个中文/英文标题部分（在年份、分辨率等技术信息之前）
