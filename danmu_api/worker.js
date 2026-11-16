@@ -5,7 +5,7 @@ import { getFavoriteCachesFromRedis, judgeRedisValid, initializePersistentCaches
 import { cleanupExpiredIPs, findUrlById, getCommentCache, judgeLocalCacheValid } from "./utils/cache-util.js";
 import { formatDanmuResponse } from "./utils/danmu-util.js";
 import AIClient from './utils/ai-util.js';
-import { getBangumi, getComment, getCommentByUrl, getSegmentComment, matchAnime, searchAnime, searchEpisodes } from "./apis/dandan-api.js";
+import { getBangumi, getBangumiByBgmId, getComment, getCommentByUrl, getSegmentComment, matchAnime, searchAnime, searchEpisodes } from "./apis/dandan-api.js";
 import { handleFavoriteAdd, handleFavoriteList, handleFavoriteRefresh, handleFavoriteRemove, handleFavoriteSchedule } from "./apis/favorite-api.js";
 import { getFongmiDanmaku } from "./apis/clients/fongmi-api.js";
 import { handleConfig, handleUI, handleLogs, handleClearLogs, handleDeploy, handleClearCache, handleReqRecords, handleCacheAnimes, handleRemoteMappingRefresh, handleRemoteAutoMatchMappingRefresh } from "./apis/system-api.js";
@@ -460,6 +460,13 @@ async function handleRequest(req, env, deployPlatform, clientIp) {
     return handleFavoriteList();
   }
 
+
+    // PATCH: GET /api/v2/bangumi/bgmtv/:bgmId —— Kazumi 自动加载用 Bangumi subject id 换弹弹play animeId，
+  // 原版 danmu_api 没有这个路由。必须放在通用 /api/v2/bangumi/ 路由之前。
+  if (path.startsWith("/api/v2/bangumi/bgmtv/") && method === "GET") {
+    const bgmId = path.split("/").pop();
+    return getBangumiByBgmId(bgmId);
+  }
 
   // GET /api/v2/bangumi/:animeId
   if (path.startsWith("/api/v2/bangumi/") && method === "GET") {
