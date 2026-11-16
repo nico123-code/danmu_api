@@ -150,7 +150,7 @@ test('danmu convertToDanmakuJson 未开启分组时仍按时间点合并多源�
 
   assert.strictEqual(out.length, 2, '同一时间点的相同内容应合并，不同内容保留');
   const merged = out.find(d => d.t === 776.32);
-  assert.strictEqual(merged.p, '776.32,5,16755202,[bilibili＆dandan]', '合并后应带上两个来源标签');
+  assert.strictEqual(merged.p, '776.32,5,16755202,[BiliBili＆DanDanPlay]', '合并后应带上两个来源标签');
 });
 
 test('danmu convertToDanmakuJson 单源且未开启分组时不合并', () => {
@@ -219,5 +219,37 @@ test('danmu convertToDanmakuJson 多源且按分钟去重时同分钟内容合�
   ], 'dandan＆bilibili');
 
   assert.strictEqual(out.length, 1, '开启分钟分组后同一分钟内的相同内容应合并');
-  assert.strictEqual(out[0].p, '10.00,1,16777215,[bilibili＆dandan]', '合并后带上两个来源标签');
+  assert.strictEqual(out[0].p, '10.00,1,16777215,[BiliBili＆DanDanPlay]', '合并后带上两个来源标签');
+});
+
+test('danmu convertToDanmakuJson 来源标签映射为 DanDanPlay 协议名供播放器来源开关识别', () => {
+  Globals.init({ GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+
+  // 单源：内部 key 映射为协议名
+  const bili = convertToDanmakuJson([
+    { progress: 1000, mode: 1, color: 16777215, content: 'B站弹幕' },
+  ], 'bilibili1');
+  assert.strictEqual(bili[0].p, '1.00,1,16777215,[BiliBili]', 'bilibili1 应标为 BiliBili');
+
+  const baha = convertToDanmakuJson([
+    { progress: 1000, mode: 1, color: 16777215, content: '巴哈弹幕' },
+  ], 'bahamut');
+  assert.strictEqual(baha[0].p, '1.00,1,16777215,[Gamer]', 'bahamut 应标为 Gamer');
+
+  const dd = convertToDanmakuJson([
+    { progress: 1000, mode: 1, color: 16777215, content: '弹弹弹幕' },
+  ], 'dandan');
+  assert.strictEqual(dd[0].p, '1.00,1,16777215,[DanDanPlay]', 'dandan 应标为 DanDanPlay');
+
+  // 不在映射表里的来源原样保留
+  const qq = convertToDanmakuJson([
+    { progress: 1000, mode: 1, color: 16777215, content: '腾讯弹幕' },
+  ], 'tencent');
+  assert.strictEqual(qq[0].p, '1.00,1,16777215,[tencent]', '未映射的来源应原样保留');
+
+  // 多源拼接：每一段分别映射
+  const merged = convertToDanmakuJson([
+    { progress: 1000, mode: 1, color: 16777215, content: '多源弹幕' },
+  ], 'dandan＆bilibili1');
+  assert.strictEqual(merged[0].p, '1.00,1,16777215,[DanDanPlay＆BiliBili]', '多源标签每段都应映射');
 });
