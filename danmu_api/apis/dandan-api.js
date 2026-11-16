@@ -2641,6 +2641,21 @@ async function fetchMergedComments(url, animeTitle, commentId) {
   return convertToDanmakuJson(mergedList, sourceTag);
 }
 
+// PATCH: 解析弹弹play 原生集 ID（animeId + 4 位集号），供 getComment 识别
+// Kazumi 自动加载直接用的原生 ID。原生 ID = 番剧 ID（3~5 位，如 6257 轻音少女、
+// 3651 凉宫春日、19308 学生会也有洞！）+ 4 位集号，总位数是 7~9 位。之前误写
+// 成 ^\d{9,}$，4 位番剧 ID 的番（轻音少女 62570001、凉宫春日 36510001 等）原生
+// ID 只有 8 位，直接 404。下限取 7 位（animeId >= 100）：再短会和内部 5 位集 ID
+// 撞号（内部集 ID 如 11394 只有 5 位）。animeId 只有 1~2 位的极早期番剧仍不在
+// 覆盖范围（会和内部 ID 混淆），暂不处理。）
+export function parseNativeDandanEpisodeId(commentId) {
+  const nativeId = String(commentId);
+  if (!/^\d{7,}$/.test(nativeId)) return null;
+  const animeId = Math.floor(Number(nativeId) / 10000);
+  const episode = Number(nativeId) % 10000;
+  if (animeId < 100 || episode < 1 || episode > 9999) return null;
+  return { animeId, episode };
+}
 // PATCH: 在已缓存的番剧里找包含 dandan:原生集ID 的合并链接（如
 // "dandan:193080002$$$bahamut:51814$$$animeko:1738536"），供原生 ID 的
 // comment 请求走合并弹幕。找不到返回 null，调用方再直走 dandan 单源。
@@ -2675,20 +2690,16 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
     // 它不在 danmu_api 的内部 ID 映射里。先找已缓存的合并链接（bgmtv 那步已搜过一次，
     // 合并链接里含 dandan:原生ID），找到就走合并弹幕；找不到再直走 dandan 单源兜底。
     const nativeId = String(commentId);
-    if (/^\d{9,}$/.test(nativeId)) {
-      const nativeAnimeId = Math.floor(Number(nativeId) / 10000);
-      const nativeEpisode = Number(nativeId) % 10000;
-      if (nativeAnimeId >= 1000 && nativeEpisode >= 1 && nativeEpisode <= 9999) {
-        const merged = findMergedLinkForNativeEpisodeId(nativeId);
-        if (merged) {
-          url = merged.url;
-          title = merged.title;
-          plat = title ? extractEpisodeTitle(title) : null;
-          if (!animeTitle) animeTitle = merged.animeTitle;
-        } else {
-          url = nativeId;
-          plat = "dandan";
-        }
+    if (parseNativeDandanEpisodeId(nativeId)) {
+      const merged = findMergedLinkForNativeEpisodeId(nativeId);
+      if (merged) {
+        url = merged.url;
+        title = merged.title;
+        plat = title ? extractEpisodeTitle(title) : null;
+        if (!animeTitle) animeTitle = merged.animeTitle;
+      } else {
+        url = nativeId;
+        plat = "dandan";
       }
     }
   }
