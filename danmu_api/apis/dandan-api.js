@@ -2326,7 +2326,12 @@ export async function getBangumiByBgmId(bgmId) {
     await searchAnime(searchUrl);
     const candidates = globals.animes.filter((a) => a.source === "dandan");
     const norm = (s) => String(s || "").split("(")[0].split("【")[0].trim();
-    const anime = candidates.find((a) => norm(a.animeTitle) === title || (a.aliases || []).includes(title)) || candidates[0];
+    // PATCH: 只认纯 dandan 条目（标题以 "from dandan" 结尾）。合并条目也是 source dandan，    
+    // 但标题是 "from dandan&..." 且 animeId 是内部大 ID（如 1163014367），Kazumi 拿它拼出
+    // 的集 ID（如 11630143670002）是无效的，拉到的弹幕是 0 条。合并条目排在前面时旧逻辑会误取它。
+    const pure = candidates.filter((a) => /from dandan$/.test(a.animeTitle || "") && String(a.animeId).length <= 8);
+    const pool = pure.length > 0 ? pure : candidates;
+      const anime = pool.find((a) => norm(a.animeTitle) === title || (a.aliases || []).includes(title)) || pool[0];
     if (!anime) {
       return jsonResponse({ errorCode: 404, success: false, errorMessage: "Anime not found", bangumi: null }, 404);
     }
