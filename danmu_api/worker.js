@@ -466,6 +466,13 @@ async function handleRequest(req, env, deployPlatform, clientIp) {
     return getBangumi(path);
   }
 
+  // PATCH: GET /api/v2/related/:episodeId —— 官方 DanDanPlay v2 有此接口，原版 danmu_api 未实现，播放器自动加载调它会返回 404
+  // 关联弹幕已在 comment 的多源合并里一并返回，这里直接复用 comment 逻辑
+  if (path.startsWith("/api/v2/related/") && method === "GET") {
+    const relatedPath = path.replace("/api/v2/related/", "/api/v2/comment/");
+    return getComment(relatedPath, url.searchParams.get('format'), false, clientIp, false);
+  }
+
   // GET /api/v2/comment/:commentId or /api/v2/comment?url=xxx or /api/v2/extcomment?url=xxx
   if ((path.startsWith("/api/v2/comment") || path.startsWith("/api/v2/extcomment")) && method === "GET") {
     const queryFormat = url.searchParams.get('format');
